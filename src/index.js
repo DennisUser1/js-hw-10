@@ -1,80 +1,57 @@
 import './css/styles.css';
+import debounce from 'lodash.debounce';
 import Notiflix from 'notiflix';
-import {fetchCountries} from './fetchCountries';
-import { debounce } from 'lodash.debounce';
 
+import refs from './references';
 
-Notiflix.Notify.init({
-    fontSize: '24px',
-    width: '400px',
-    borderRadius: '40px',
-    });
+import API from './api';
+import {
+  onInfo,
+  onError,
+  onClearCountryList,
+  onClearCountryInfo,
+  renderCountryList,
+  renderCountryInfo,
+} from './functions';
 
 const DEBOUNCE_DELAY = 300;
 
-const refs = {
-    inputCountryEl: document.querySelector('#search-box'),
-    litsCountresEl: document.querySelector('.country-list'),
-}
+refs.input.addEventListener('input', debounce(onTextAreaInput, DEBOUNCE_DELAY));
 
-const createDropList = (cauntry) => `<li class="country-list__item">
-<img src="${cauntry.flags.svg}" alt="flag of ${cauntry.name.official}" width="50">
-<h2>${cauntry.name.official}</h2></li>`
-
-const generateContent = (array) =>
-    array.reduce((acc, cauntry) => acc + createDropList(cauntry), "");
-
-const insertContent = (array) => {
-    const result = generateContent(array);
-    refs.litsCountresEl.insertAdjacentHTML('beforeend', result);
-}
-
-const createCautryCart = (cauntry) => {
-    const cautryCard = 
-    `<div class="country-info">
-        <div class="country">
-            <img src="${cauntry.flags.svg}" alt="flag of ${cauntry.name.official}" class="country__flag">
-            <h2 class="coutry__name">${cauntry.name.official}</h2>
-        </div>
-        <p><span>Capital:</span>${cauntry.capital}</p>
-        <p><span>Population:</span>${cauntry.population}</p>
-        <p><span>Languages:</span>${Object.values(cauntry.languages)}</p>
-    </div>`
-    refs.litsCountresEl.insertAdjacentHTML('beforeend', cautryCard);
-}
-
-const clearList = () => {
-    refs.litsCountresEl.innerHTML = "";
-}
-
-const filter = (array) => {
-    if (array.length === 1) {
-        clearList();
-        return createCautryCart(array[0]);
-    } else if (array.length <= 10 && array.length > 1) {
-        clearList();
-        insertContent (array);
-    } else if (array.length >= 10) {
-        clearList();
-        Notiflix.Notify.info("Too many matches found. Please enter a more specific name 🤖");
-    } else { 
-        clearList();
-        Notiflix.Notify.failure("Oops, there is no country with that name 😱");
-    }
-    }
-
-    refs.inputCountryEl.addEventListener('input', debounce(onInput, DEBOUNCE_DELAY));
-
-function onInput(evn) {
-    const searchName = evn.target.value.trim();
-    if (searchName === "") {
-        return;
-    }
-    fetchCountries(searchName)
-    .then((data) => {
-        filter(data);
+function onTextAreaInput(event) {
+  const inputValue = event.target.value.trim(); // введення змінної для відображення значення інпуту, і використання методу трім для очещення зайвих пробілів
+  if (inputValue === '') {
+    onClearCountryList();
+    onClearCountryInfo();
+    return;
+  }
+  API.fetchCountries(inputValue)
+    .then(countries => {
+      if (countries.length > 10) {
+        onInfo();
+      }
+      return countries;
     })
-    .catch((error) => {
-        console.log(error);
+    .then(countries => {
+      if (countries.length < 10 && countries.length > 1) {
+        onClearCountryInfo();
+        onClearCountryList();
+        renderCountryList(countries);
+      }
+      return countries;
     })
+    .then(countries => {
+      if (countries.length === 1) {
+        onClearCountryList();
+        renderCountryInfo(countries);
+      }
+      return countries;
+    })
+    .then(countries => {
+      if (countries.length === 0) {
+        Notiflix.Notify.failure('Oops, there is no country with that name');
+      }
+      return countries;
+    })
+    .catch(onError);
 }
